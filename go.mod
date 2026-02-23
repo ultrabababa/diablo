@@ -88,3 +88,5 @@ require (
 )
 
 replace github.com/portto/aptos-go-sdk => github.com/lebdron/aptos-go-sdk v0.0.0-20231007002036-aacfcea1bb02
+
+replace github.com/relab/hotstuff => ../hotstuff
