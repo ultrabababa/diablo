@@ -5,6 +5,7 @@ import (
 	"diablo-benchmark/blockchains/mock"
 	"diablo-benchmark/blockchains/nalgorand"
 	"diablo-benchmark/blockchains/naptos"
+	"diablo-benchmark/blockchains/nasonninohotstuff"
 	"diablo-benchmark/blockchains/navalanche"
 	"diablo-benchmark/blockchains/ndiem"
 	"diablo-benchmark/blockchains/nethereum"
@@ -41,14 +42,17 @@ const (
 
 func buildSystemMap() map[string]core.BlockchainInterface {
 	return map[string]core.BlockchainInterface{
-		"algorand":  nredundant.NewInterface(&nalgorand.BlockchainInterface{}),
-		"avalanche": nredundant.NewInterface(&navalanche.BlockchainInterface{}),
-		"aptos":     nredundant.NewInterface(&naptos.BlockchainInterface{}),
-		"diem":      nredundant.NewInterface(&ndiem.BlockchainInterface{}),
-		"ethereum":  nredundant.NewInterface(&nethereum.BlockchainInterface{}),
-		"hotstuff":  &nhotstuff.BlockchainInterface{},
-		"solana":    nredundant.NewInterface(&nsolana.BlockchainInterface{}),
-		"mock":      nredundant.NewInterface(&mock.BlockchainInterface{}),
+		"algorand":                    nredundant.NewInterface(&nalgorand.BlockchainInterface{}),
+		"avalanche":                   nredundant.NewInterface(&navalanche.BlockchainInterface{}),
+		"aptos":                       nredundant.NewInterface(&naptos.BlockchainInterface{}),
+		"diem":                        nredundant.NewInterface(&ndiem.BlockchainInterface{}),
+		"ethereum":                    nredundant.NewInterface(&nethereum.BlockchainInterface{}),
+		"hotstuff":                    &nhotstuff.BlockchainInterface{},
+		"asonnino-hotstuff":           &nasonninohotstuff.BlockchainInterface{},
+		"asonnino-hotstuff-redundant": nredundant.NewInterface(&nasonninohotstuff.BlockchainInterface{}),
+		"hotstuff-redundant":          nredundant.NewInterface(&nhotstuff.BlockchainInterface{}),
+		"solana":                      nredundant.NewInterface(&nsolana.BlockchainInterface{}),
+		"mock":                        nredundant.NewInterface(&mock.BlockchainInterface{}),
 	}
 }
 
