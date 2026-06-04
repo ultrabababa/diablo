@@ -41,7 +41,7 @@ func (b *BlockchainBuilder) EncodeInteraction(itype string, expr core.BenchmarkE
 
 func (b *BlockchainBuilder) encodePayload() []byte {
 	seq := atomic.AddUint64(&b.seq, 1)
-	payload := make([]byte, 16)
+	payload := make([]byte, 9)
 	payload[0] = 0 // sample tx marker for asonnino mempool logs
 	binary.BigEndian.PutUint64(payload[1:9], seq)
 	return payload

@@ -15,14 +15,16 @@ import (
 	"time"
 )
 
-const defaultInflightCap = 256
+const defaultInflightCap = 4096
+const mempoolSendAttempts = 5
 
 type clientConfig struct {
 	inflightCap int
+	mempoolMode string
 }
 
 func parseClientConfig(params map[string]string) (clientConfig, error) {
-	cfg := clientConfig{inflightCap: defaultInflightCap}
+	cfg := clientConfig{inflightCap: defaultInflightCap, mempoolMode: "round_robin"}
 	if params == nil {
 		return cfg, nil
 	}
@@ -33,6 +35,15 @@ func parseClientConfig(params map[string]string) (clientConfig, error) {
 			return cfg, fmt.Errorf("invalid client_inflight parameter: %q", v)
 		}
 		cfg.inflightCap = n
+	}
+
+	if v, ok := params["client_mempool_mode"]; ok {
+		switch v {
+		case "round_robin", "single":
+			cfg.mempoolMode = v
+		default:
+			return cfg, fmt.Errorf("invalid client_mempool_mode parameter: %q", v)
+		}
 	}
 
 	return cfg, nil
@@ -51,6 +62,7 @@ type BlockchainClient struct {
 	inflight      chan struct{}
 	rr            uint64
 	httpClient    *http.Client
+	mempoolMode   string
 }
 
 func newClient(logger core.Logger, view []string, cfg clientConfig) (*BlockchainClient, error) {
@@ -90,6 +102,7 @@ func newClient(logger core.Logger, view []string, cfg clientConfig) (*Blockchain
 		httpClient: &http.Client{
 			Timeout: 1200 * time.Millisecond,
 		},
+		mempoolMode: cfg.mempoolMode,
 	}, nil
 }
 
@@ -109,14 +122,12 @@ func (c *BlockchainClient) TriggerInteraction(iact core.Interaction) error {
 		return fmt.Errorf("empty payload for asonnino-hotstuff")
 	}
 
-	idx := int(atomic.AddUint64(&c.rr, 1)-1) % len(c.mempoolAddrs)
+	idx := c.selectEndpoint()
 	endpoint := c.mempoolAddrs[idx]
 	txID := parseTxID(payload)
 
 	c.inflight <- struct{}{}
 	defer func() { <-c.inflight }()
-
-	iact.ReportSubmit()
 
 	frame := make([]byte, 4+len(payload))
 	binary.BigEndian.PutUint32(frame[:4], uint32(len(payload)))
@@ -127,10 +138,42 @@ func (c *BlockchainClient) TriggerInteraction(iact core.Interaction) error {
 		return err
 	}
 
+	iact.ReportSubmit()
 	return c.confirm(iact, idx, txID)
 }
 
+func (c *BlockchainClient) selectEndpoint() int {
+	if c.mempoolMode == "single" {
+		return 0
+	}
+	return int(atomic.AddUint64(&c.rr, 1)-1) % len(c.mempoolAddrs)
+}
+
 func (c *BlockchainClient) sendFrame(idx int, endpoint string, frame []byte) error {
+	backoffs := []time.Duration{
+		200 * time.Millisecond,
+		500 * time.Millisecond,
+		1 * time.Second,
+		2 * time.Second,
+	}
+	var lastErr error
+
+	for attempt := 0; attempt < mempoolSendAttempts; attempt++ {
+		if err := c.sendFrameOnce(idx, endpoint, frame); err == nil {
+			return nil
+		} else {
+			lastErr = err
+		}
+
+		if attempt < len(backoffs) {
+			time.Sleep(backoffs[attempt])
+		}
+	}
+
+	return lastErr
+}
+
+func (c *BlockchainClient) sendFrameOnce(idx int, endpoint string, frame []byte) error {
 	p := c.conns[idx]
 	p.mu.Lock()
 	defer p.mu.Unlock()
